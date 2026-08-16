@@ -1,0 +1,147 @@
+-- [ULTIMATE ATTRIBUTE CONTROL & ANTI-RESET ENGINE - PH.D. CLASS]
+-- พัฒนาสำหรับ Mobile Executor (Delta) - เน้นเสถียรภาพและความปลอดภัยสูงสุด
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:FindFirstChild("PlayerGui") or CoreGui
+
+-- ==========================================
+-- 1. ลบ GUI เดิมเพื่อป้องกันการซ้อนทับ (Memory Cleanup)
+-- ==========================================
+if CoreGui:FindFirstChild("AttributeControlHub") then
+    CoreGui:FindFirstChild("AttributeControlHub"):Destroy()
+end
+
+-- ==========================================
+-- 2. ศูนย์กลางการตั้งค่าและสถานะ (State Management)
+-- ==========================================
+local Config = {
+    WalkSpeed = 16,
+    JumpPower = 50
+}
+
+-- ==========================================
+-- 3. ฟังก์ชันการบังคับค่าความเร็วและกระโดด (Core Enforcement)
+-- ==========================================
+local function ApplyAttributes(character)
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return end
+
+    -- บังคับค่าที่ต้องการ
+    humanoid.WalkSpeed = Config.WalkSpeed
+    humanoid.JumpPower = Config.JumpPower
+    humanoid.UseJumpPower = true
+
+    -- ดักจับการเปลี่ยนแปลงจากเซิร์ฟเวอร์หรือสคริปต์อื่น (Anti-Reset Mechanism)
+    humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+        if humanoid.WalkSpeed ~= Config.WalkSpeed then
+            humanoid.WalkSpeed = Config.WalkSpeed
+        end
+    end)
+
+    humanoid:GetPropertyChangedSignal("JumpPower"):Connect(function()
+        if humanoid.JumpPower ~= Config.JumpPower then
+            humanoid.JumpPower = Config.JumpPower
+        end
+    end)
+end
+
+-- ผูกเข้ากับระบบเกิดใหม่ของตัวละคร
+LocalPlayer.CharacterAdded:Connect(ApplyAttributes)
+if LocalPlayer.Character then ApplyAttributes(LocalPlayer.Character) end
+
+-- ==========================================
+-- 4. การสร้าง UI บนมือถือ (Mobile UI Engine)
+-- ==========================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AttributeControlHub"
+ScreenGui.Parent = PlayerGui
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 250, 0, 200)
+MainFrame.Position = UDim2.new(0.5, -125, 0.5, -100)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.Active = true
+MainFrame.Draggable = true -- รองรับการลากบนมือถือ
+MainFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner", MainFrame)
+UICorner.CornerRadius = UDim.new(0, 10)
+
+-- ฟังก์ชันสร้าง Slider (Reusable Component)
+local function CreateSlider(name, min, max, initial, callback)
+    local Container = Instance.new("Frame", MainFrame)
+    Container.Size = UDim2.new(0.9, 0, 0, 40)
+    Container.Position = UDim2.new(0.05, 0, 0.1, 0)
+    Container.BackgroundTransparency = 1
+    
+    local Title = Instance.new("TextLabel", Container)
+    Title.Text = name .. ": " .. initial
+    Title.Size = UDim2.new(1, 0, 0.5, 0)
+    Title.TextColor3 = Color3.new(1, 1, 1)
+    Title.Font = Enum.Font.GothamBold
+    Title.BackgroundTransparency = 1
+
+    local Bar = Instance.new("Frame", Container)
+    Bar.Size = UDim2.new(1, 0, 0.4, 0)
+    Bar.Position = UDim2.new(0, 0, 0.6, 0)
+    Bar.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    
+    local SliderButton = Instance.new("TextButton", Bar)
+    SliderButton.Size = UDim2.new(0.1, 0, 1.5, 0)
+    SliderButton.Position = UDim2.new((initial-min)/(max-min), 0, -0.25, 0)
+    SliderButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    SliderButton.Text = ""
+
+    local dragging = false
+    SliderButton.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    RunService.RenderStepped:Connect(function()
+        if dragging then
+            local mousePos = UserInputService:GetMouseLocation()
+            local relativeX = mousePos.X - Bar.AbsolutePosition.X
+            local percentage = math.clamp(relativeX / Bar.AbsoluteSize.X, 0, 1)
+            SliderButton.Position = UDim2.new(percentage, 0, -0.25, 0)
+            
+            local val = math.floor(min + (percentage * (max - min)))
+            Title.Text = name .. ": " .. val
+            callback(val)
+        end
+    end)
+    
+    return Container
+end
+
+-- ==========================================
+-- 5. การกำหนดค่า Slider ให้ทำงาน
+-- ==========================================
+CreateSlider("WalkSpeed", 16, 500, 16, function(val)
+    Config.WalkSpeed = val
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.WalkSpeed = val
+    end
+end)
+
+local JumpSlider = CreateSlider("JumpPower", 50, 1000, 50, function(val)
+    Config.JumpPower = val
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.JumpPower = val
+    end
+end)
+JumpSlider.Position = UDim2.new(0.05, 0, 0.5, 0)
+
+print("[PHD Luau System] ระบบ Attributes Control เปิดใช้งานสมบูรณ์")
