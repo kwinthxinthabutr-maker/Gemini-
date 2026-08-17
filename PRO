@@ -1,0 +1,702 @@
+--========================================================--
+--                BEAUTIFUL ROBLOX UI
+--        Pre-Load -> Loading -> Main Window
+--========================================================--
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local ContentProvider = game:GetService("ContentProvider")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+--========================================================--
+-- CONFIG
+--========================================================--
+
+local CONFIG = {
+	GameName = "MY GAME",
+	Version = "v1.0.0",
+
+	PrimaryColor = Color3.fromRGB(90, 120, 255),
+	BackgroundColor = Color3.fromRGB(12, 14, 22),
+	PanelColor = Color3.fromRGB(20, 23, 34),
+
+	LoadingTime = 5
+}
+
+--========================================================--
+-- UTILITY
+--========================================================--
+
+local function create(className, properties, parent)
+	local object = Instance.new(className)
+
+	for property, value in pairs(properties) do
+		object[property] = value
+	end
+
+	object.Parent = parent
+	return object
+end
+
+local function tween(object, time, properties, style, direction)
+	local info = TweenInfo.new(
+		time or 0.35,
+		style or Enum.EasingStyle.Quart,
+		direction or Enum.EasingDirection.Out
+	)
+
+	local animation = TweenService:Create(object, info, properties)
+	animation:Play()
+
+	return animation
+end
+
+local function corner(parent, radius)
+	return create("UICorner", {
+		CornerRadius = UDim.new(0, radius)
+	}, parent)
+end
+
+local function stroke(parent, color, thickness, transparency)
+	return create("UIStroke", {
+		Color = color,
+		Thickness = thickness or 1,
+		Transparency = transparency or 0
+	}, parent)
+end
+
+--========================================================--
+-- SCREEN GUI
+--========================================================--
+
+local gui = create("ScreenGui", {
+	Name = "BeautifulLoadingUI",
+	ResetOnSpawn = false,
+	IgnoreGuiInset = true,
+	DisplayOrder = 999,
+	ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+}, playerGui)
+
+--========================================================--
+-- BACKGROUND
+--========================================================--
+
+local background = create("Frame", {
+	Name = "Background",
+	Size = UDim2.fromScale(1, 1),
+	BackgroundColor3 = CONFIG.BackgroundColor,
+	BorderSizePixel = 0
+}, gui)
+
+-- Gradient
+local gradient = create("UIGradient", {
+	Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(10, 12, 20)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(17, 20, 32)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 10, 17))
+	}),
+	Rotation = 45
+}, background)
+
+--========================================================--
+-- DECORATION
+--========================================================--
+
+local function createGlow(position, size, transparency)
+
+	local glow = create("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = position,
+		Size = size,
+		BackgroundColor3 = CONFIG.PrimaryColor,
+		BackgroundTransparency = transparency,
+		BorderSizePixel = 0
+	}, background)
+
+	corner(glow, 999)
+
+	local glowGradient = create("UIGradient", {
+		Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0),
+			NumberSequenceKeypoint.new(1, 1)
+		})
+	}, glow)
+
+	return glow
+end
+
+createGlow(
+	UDim2.fromScale(0.15, 0.15),
+	UDim2.fromOffset(300, 300),
+	0.85
+)
+
+createGlow(
+	UDim2.fromScale(0.85, 0.8),
+	UDim2.fromOffset(400, 400),
+	0.88
+)
+
+--========================================================--
+-- PRE-LOAD SCREEN
+--========================================================--
+
+local preLoad = create("Frame", {
+	Name = "PreLoad",
+	Size = UDim2.fromScale(1, 1),
+	BackgroundTransparency = 1
+}, background)
+
+-- Logo Circle
+local logo = create("Frame", {
+	Name = "Logo",
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.35),
+	Size = UDim2.fromOffset(110, 110),
+	BackgroundColor3 = CONFIG.PrimaryColor,
+	BorderSizePixel = 0
+}, preLoad)
+
+corner(logo, 999)
+stroke(logo, Color3.fromRGB(160, 180, 255), 2, 0.25)
+
+local logoText = create("TextLabel", {
+	Size = UDim2.fromScale(1, 1),
+	BackgroundTransparency = 1,
+	Text = "M",
+	TextColor3 = Color3.fromRGB(255, 255, 255),
+	Font = Enum.Font.GothamBold,
+	TextSize = 52
+}, logo)
+
+-- Game Name
+local gameName = create("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.fromScale(0.5, 0.48),
+	Size = UDim2.fromOffset(500, 60),
+	BackgroundTransparency = 1,
+	Text = CONFIG.GameName,
+	TextColor3 = Color3.fromRGB(255, 255, 255),
+	Font = Enum.Font.GothamBold,
+	TextSize = 38
+}, preLoad)
+
+local subtitle = create("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.fromScale(0.5, 0.56),
+	Size = UDim2.fromOffset(500, 35),
+	BackgroundTransparency = 1,
+	Text = "Welcome to the experience",
+	TextColor3 = Color3.fromRGB(170, 175, 195),
+	Font = Enum.Font.Gotham,
+	TextSize = 16
+}, preLoad)
+
+-- Start Button
+local startButton = create("TextButton", {
+	Name = "StartButton",
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.fromScale(0.5, 0.66),
+	Size = UDim2.fromOffset(230, 55),
+	BackgroundColor3 = CONFIG.PrimaryColor,
+	BorderSizePixel = 0,
+	Text = "START",
+	TextColor3 = Color3.fromRGB(255, 255, 255),
+	Font = Enum.Font.GothamBold,
+	TextSize = 18,
+	AutoButtonColor = false
+}, preLoad)
+
+corner(startButton, 14)
+stroke(startButton, Color3.fromRGB(150, 170, 255), 1, 0.35)
+
+-- Version
+local version = create("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.fromScale(0.5, 0.95),
+	Size = UDim2.fromOffset(300, 25),
+	BackgroundTransparency = 1,
+	Text = CONFIG.Version,
+	TextColor3 = Color3.fromRGB(100, 105, 125),
+	Font = Enum.Font.Gotham,
+	TextSize = 13
+}, preLoad)
+
+-- Button animation
+startButton.MouseEnter:Connect(function()
+	tween(startButton, 0.2, {
+		Size = UDim2.fromOffset(245, 60)
+	})
+end)
+
+startButton.MouseLeave:Connect(function()
+	tween(startButton, 0.2, {
+		Size = UDim2.fromOffset(230, 55)
+	})
+end)
+
+--========================================================--
+-- LOADING SCREEN
+--========================================================--
+
+local loading = create("Frame", {
+	Name = "Loading",
+	Size = UDim2.fromScale(1, 1),
+	BackgroundTransparency = 1,
+	Visible = false
+}, background)
+
+local loadingTitle = create("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.fromScale(0.5, 0.39),
+	Size = UDim2.fromOffset(500, 50),
+	BackgroundTransparency = 1,
+	Text = "LOADING",
+	TextColor3 = Color3.fromRGB(255, 255, 255),
+	Font = Enum.Font.GothamBold,
+	TextSize = 32
+}, loading)
+
+local loadingStatus = create("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.fromScale(0.5, 0.46),
+	Size = UDim2.fromOffset(500, 30),
+	BackgroundTransparency = 1,
+	Text = "Preparing...",
+	TextColor3 = Color3.fromRGB(160, 165, 185),
+	Font = Enum.Font.Gotham,
+	TextSize = 15
+}, loading)
+
+-- Progress Background
+local progressBackground = create("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.fromScale(0.5, 0.54),
+	Size = UDim2.fromOffset(450, 12),
+	BackgroundColor3 = Color3.fromRGB(35, 39, 55),
+	BorderSizePixel = 0
+}, loading)
+
+corner(progressBackground, 20)
+
+-- Progress Bar
+local progress = create("Frame", {
+	Name = "Progress",
+	Size = UDim2.new(0, 0, 1, 0),
+	BackgroundColor3 = CONFIG.PrimaryColor,
+	BorderSizePixel = 0
+}, progressBackground)
+
+corner(progress, 20)
+
+-- Percentage
+local percentage = create("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.fromScale(0.5, 0.59),
+	Size = UDim2.fromOffset(200, 30),
+	BackgroundTransparency = 1,
+	Text = "0%",
+	TextColor3 = Color3.fromRGB(255, 255, 255),
+	Font = Enum.Font.GothamBold,
+	TextSize = 16
+}, loading)
+
+--========================================================--
+-- MAIN UI
+--========================================================--
+
+local main = create("Frame", {
+	Name = "MainUI",
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.55),
+	Size = UDim2.fromOffset(750, 460),
+	BackgroundColor3 = CONFIG.PanelColor,
+	BorderSizePixel = 0,
+	Visible = false
+}, background)
+
+corner(main, 18)
+stroke(main, Color3.fromRGB(80, 85, 110), 1, 0.35)
+
+-- Top Bar
+local topBar = create("Frame", {
+	Size = UDim2.new(1, 0, 0, 65),
+	BackgroundColor3 = Color3.fromRGB(24, 27, 40),
+	BorderSizePixel = 0
+}, main)
+
+corner(topBar, 18)
+
+-- Cover bottom corners
+local topBarFix = create("Frame", {
+	Position = UDim2.new(0, 0, 1, -18),
+	Size = UDim2.new(1, 0, 0, 18),
+	BackgroundColor3 = Color3.fromRGB(24, 27, 40),
+	BorderSizePixel = 0
+}, topBar)
+
+local title = create("TextLabel", {
+	Position = UDim2.fromOffset(25, 10),
+	Size = UDim2.fromOffset(400, 30),
+	BackgroundTransparency = 1,
+	Text = CONFIG.GameName,
+	TextColor3 = Color3.fromRGB(255, 255, 255),
+	Font = Enum.Font.GothamBold,
+	TextSize = 21,
+	TextXAlignment = Enum.TextXAlignment.Left
+}, topBar)
+
+local status = create("TextLabel", {
+	Position = UDim2.fromOffset(25, 37),
+	Size = UDim2.fromOffset(300, 20),
+	BackgroundTransparency = 1,
+	Text = "●  ONLINE",
+	TextColor3 = Color3.fromRGB(100, 220, 150),
+	Font = Enum.Font.Gotham,
+	TextSize = 12,
+	TextXAlignment = Enum.TextXAlignment.Left
+}, topBar)
+
+-- Close Button
+local closeButton = create("TextButton", {
+	AnchorPoint = Vector2.new(1, 0.5),
+	Position = UDim2.new(1, -20, 0.5, 0),
+	Size = UDim2.fromOffset(35, 35),
+	BackgroundColor3 = Color3.fromRGB(40, 43, 58),
+	BorderSizePixel = 0,
+	Text = "×",
+	TextColor3 = Color3.fromRGB(255, 255, 255),
+	Font = Enum.Font.GothamBold,
+	TextSize = 22,
+	AutoButtonColor = false
+}, topBar)
+
+corner(closeButton, 10)
+
+--========================================================--
+-- SIDEBAR
+--========================================================--
+
+local sidebar = create("Frame", {
+	Position = UDim2.fromOffset(15, 80),
+	Size = UDim2.new(0, 160, 1, -95),
+	BackgroundColor3 = Color3.fromRGB(16, 19, 29),
+	BorderSizePixel = 0
+}, main)
+
+corner(sidebar, 14)
+
+local sidebarLayout = create("UIListLayout", {
+	Padding = UDim.new(0, 8),
+	HorizontalAlignment = Enum.HorizontalAlignment.Center,
+	VerticalAlignment = Enum.VerticalAlignment.Top
+}, sidebar)
+
+create("UIPadding", {
+	PaddingTop = UDim.new(0, 15)
+}, sidebar)
+
+--========================================================--
+-- CONTENT
+--========================================================--
+
+local content = create("Frame", {
+	Position = UDim2.fromOffset(190, 80),
+	Size = UDim2.new(1, -210, 1, -95),
+	BackgroundTransparency = 1
+}, main)
+
+local contentTitle = create("TextLabel", {
+	Size = UDim2.new(1, 0, 0, 40),
+	BackgroundTransparency = 1,
+	Text = "Dashboard",
+	TextColor3 = Color3.fromRGB(255, 255, 255),
+	Font = Enum.Font.GothamBold,
+	TextSize = 28,
+	TextXAlignment = Enum.TextXAlignment.Left
+}, content)
+
+local contentDescription = create("TextLabel", {
+	Position = UDim2.fromOffset(0, 42),
+	Size = UDim2.new(1, 0, 0, 30),
+	BackgroundTransparency = 1,
+	Text = "Welcome back! Select an option from the menu.",
+	TextColor3 = Color3.fromRGB(145, 150, 170),
+	Font = Enum.Font.Gotham,
+	TextSize = 14,
+	TextXAlignment = Enum.TextXAlignment.Left
+}, content)
+
+--========================================================--
+-- CARDS
+--========================================================--
+
+local function createCard(position, titleText, valueText)
+
+	local card = create("Frame", {
+		Position = position,
+		Size = UDim2.fromOffset(155, 100),
+		BackgroundColor3 = Color3.fromRGB(26, 30, 44),
+		BorderSizePixel = 0
+	}, content)
+
+	corner(card, 14)
+
+	stroke(
+		card,
+		Color3.fromRGB(70, 75, 100),
+		1,
+		0.5
+	)
+
+	create("TextLabel", {
+		Position = UDim2.fromOffset(15, 15),
+		Size = UDim2.new(1, -30, 0, 25),
+		BackgroundTransparency = 1,
+		Text = titleText,
+		TextColor3 = Color3.fromRGB(145, 150, 170),
+		Font = Enum.Font.Gotham,
+		TextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Left
+	}, card)
+
+	create("TextLabel", {
+		Position = UDim2.fromOffset(15, 42),
+		Size = UDim2.new(1, -30, 0, 40),
+		BackgroundTransparency = 1,
+		Text = valueText,
+		TextColor3 = Color3.fromRGB(255, 255, 255),
+		Font = Enum.Font.GothamBold,
+		TextSize = 24,
+		TextXAlignment = Enum.TextXAlignment.Left
+	}, card)
+
+	return card
+end
+
+createCard(
+	UDim2.fromOffset(0, 90),
+	"STATUS",
+	"READY"
+)
+
+createCard(
+	UDim2.fromOffset(170, 90),
+	"VERSION",
+	CONFIG.Version
+)
+
+--========================================================--
+-- SIDEBAR BUTTONS
+--========================================================--
+
+local function createMenuButton(text, icon)
+
+	local button = create("TextButton", {
+		Size = UDim2.fromOffset(135, 45),
+		BackgroundColor3 = Color3.fromRGB(16, 19, 29),
+		BorderSizePixel = 0,
+		Text = icon .. "   " .. text,
+		TextColor3 = Color3.fromRGB(170, 175, 195),
+		Font = Enum.Font.GothamMedium,
+		TextSize = 14,
+		AutoButtonColor = false
+	}, sidebar)
+
+	corner(button, 10)
+
+	button.MouseEnter:Connect(function()
+		tween(button, 0.2, {
+			BackgroundColor3 = Color3.fromRGB(35, 40, 58),
+			TextColor3 = Color3.fromRGB(255, 255, 255)
+		})
+	end)
+
+	button.MouseLeave:Connect(function()
+		tween(button, 0.2, {
+			BackgroundColor3 = Color3.fromRGB(16, 19, 29),
+			TextColor3 = Color3.fromRGB(170, 175, 195)
+		})
+	end)
+
+	return button
+end
+
+local homeButton = createMenuButton("Home", "⌂")
+local settingsButton = createMenuButton("Settings", "⚙")
+local infoButton = createMenuButton("About", "ⓘ")
+
+--========================================================--
+-- MENU EVENTS
+--========================================================--
+
+homeButton.MouseButton1Click:Connect(function()
+
+	contentTitle.Text = "Dashboard"
+	contentDescription.Text = "Welcome back! Select an option from the menu."
+
+end)
+
+settingsButton.MouseButton1Click:Connect(function()
+
+	contentTitle.Text = "Settings"
+	contentDescription.Text = "Configure your preferences here."
+
+end)
+
+infoButton.MouseButton1Click:Connect(function()
+
+	contentTitle.Text = "About"
+	contentDescription.Text = CONFIG.GameName .. " " .. CONFIG.Version
+
+end)
+
+--========================================================--
+-- CLOSE / OPEN
+--========================================================--
+
+local opened = true
+
+closeButton.MouseButton1Click:Connect(function()
+
+	if not opened then
+		return
+	end
+
+	opened = false
+
+	tween(main, 0.35, {
+		Size = UDim2.fromOffset(680, 410),
+		BackgroundTransparency = 1
+	})
+
+	task.wait(0.35)
+
+	main.Visible = false
+end)
+
+--========================================================--
+-- LOADING FUNCTION
+--========================================================--
+
+local function startLoading()
+
+	preLoad.Visible = false
+	loading.Visible = true
+
+	local loadingMessages = {
+		"Initializing...",
+		"Loading interface...",
+		"Preparing assets...",
+		"Connecting...",
+		"Almost ready..."
+	}
+
+	for i = 0, 100 do
+
+		local percent = i / 100
+
+		progress.Size = UDim2.new(percent, 0, 1, 0)
+		percentage.Text = tostring(i) .. "%"
+
+		local messageIndex = math.clamp(
+			math.floor(i / 20) + 1,
+			1,
+			#loadingMessages
+		)
+
+		loadingStatus.Text = loadingMessages[messageIndex]
+
+		task.wait(CONFIG.LoadingTime / 100)
+	end
+
+	loadingStatus.Text = "Complete!"
+
+	task.wait(0.5)
+
+	-- Fade loading screen
+	for _, object in ipairs(loading:GetDescendants()) do
+
+		if object:IsA("TextLabel") then
+			tween(object, 0.4, {
+				TextTransparency = 1
+			})
+
+		elseif object:IsA("Frame") then
+			tween(object, 0.4, {
+				BackgroundTransparency = 1
+			})
+		end
+
+	end
+
+	task.wait(0.5)
+
+	loading.Visible = false
+	main.Visible = true
+
+	-- Main UI entrance animation
+	main.Size = UDim2.fromOffset(600, 360)
+	main.BackgroundTransparency = 1
+
+	tween(main, 0.5, {
+		Size = UDim2.fromOffset(750, 460),
+		BackgroundTransparency = 0
+	}, Enum.EasingStyle.Back)
+
+	opened = true
+end
+
+--========================================================--
+-- START
+--========================================================--
+
+startButton.MouseButton1Click:Connect(function()
+
+	startButton.Active = false
+
+	tween(startButton, 0.2, {
+		BackgroundTransparency = 0.3
+	})
+
+	task.wait(0.15)
+
+	startLoading()
+
+end)
+
+--========================================================--
+-- INITIAL ANIMATION
+--========================================================--
+
+logo.Size = UDim2.fromOffset(0, 0)
+
+tween(logo, 0.6, {
+	Size = UDim2.fromOffset(110, 110)
+}, Enum.EasingStyle.Back)
+
+gameName.TextTransparency = 1
+subtitle.TextTransparency = 1
+startButton.BackgroundTransparency = 1
+startButton.TextTransparency = 1
+
+task.wait(0.3)
+
+tween(gameName, 0.5, {
+	TextTransparency = 0
+})
+
+task.wait(0.15)
+
+tween(subtitle, 0.5, {
+	TextTransparency = 0
+})
+
+task.wait(0.2)
+
+tween(startButton, 0.5, {
+	BackgroundTransparency = 0,
+	TextTransparency = 0
+})
