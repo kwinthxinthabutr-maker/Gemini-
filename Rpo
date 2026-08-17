@@ -1,0 +1,487 @@
+-- ============================================
+--   MM2 Script v2.0  |  LocalScript
+-- ============================================
+
+local Players       = game:GetService("Players")
+local RunService    = game:GetService("RunService")
+local UIS           = game:GetService("UserInputService")
+local Camera        = workspace.CurrentCamera
+local player        = Players.LocalPlayer
+
+-- ==========================================
+--   HELPER FUNCTIONS
+-- ==========================================
+
+-- หาผู้เล่นที่ใกล้ที่สุด
+local function getNearestPlayer(maxDist)
+    local char = player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+
+    local nearest, nearDist = nil, maxDist or math.huge
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= player and p.Character then
+            local pRoot = p.Character:FindFirstChild("HumanoidRootPart")
+            local pHum  = p.Character:FindFirstChild("Humanoid")
+            if pRoot and pHum and pHum.Health > 0 then
+                local d = (root.Position - pRoot.Position).Magnitude
+                if d < nearDist then
+                    nearest  = p
+                    nearDist = d
+                end
+            end
+        end
+    end
+    return nearest
+end
+
+-- หาฆาตกร (ถือมีด)
+local function findMurderer()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= player and p.Character then
+            for _, t in pairs(p.Character:GetChildren()) do
+                if t:IsA("Tool") then
+                    local n = t.Name:lower()
+                    if n:find("knife") or n:find("blade") then
+                        return p
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- ดูว่าเราถือ Tool อะไรอยู่
+local function getMyTool()
+    local char = player.Character
+    return char and char:FindFirstChildOfClass("Tool")
+end
+
+-- ============================================
+--   GUI
+-- ============================================
+
+local gui = Instance.new("ScreenGui")
+gui.Name          = "MM2UI_v2"
+gui.ResetOnSpawn  = false
+gui.Parent        = player:WaitForChild("PlayerGui")
+
+-- Frame หลัก
+local frame = Instance.new("Frame")
+frame.Size            = UDim2.new(0, 270, 0, 480)
+frame.Position        = UDim2.new(0, 12, 0, 12)
+frame.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+frame.BorderSizePixel = 0
+frame.Parent          = gui
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
+
+-- Title bar
+local titleBar = Instance.new("Frame")
+titleBar.Size            = UDim2.new(1, 0, 0, 38)
+titleBar.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
+titleBar.BorderSizePixel = 0
+titleBar.Parent          = frame
+Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 12)
+
+local titleLbl = Instance.new("TextLabel")
+titleLbl.Size              = UDim2.new(1, -45, 1, 0)
+titleLbl.Position          = UDim2.new(0, 10, 0, 0)
+titleLbl.BackgroundTransparency = 1
+titleLbl.Text              = "🔪  MM2 Script  v2.0"
+titleLbl.TextColor3        = Color3.fromRGB(255, 80, 80)
+titleLbl.TextScaled        = true
+titleLbl.Font              = Enum.Font.GothamBold
+titleLbl.TextXAlignment    = Enum.TextXAlignment.Left
+titleLbl.Parent            = titleBar
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size             = UDim2.new(0, 28, 0, 28)
+closeBtn.Position         = UDim2.new(1, -34, 0, 5)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+closeBtn.Text             = "✕"
+closeBtn.TextColor3       = Color3.fromRGB(255,255,255)
+closeBtn.TextScaled       = true
+closeBtn.Font             = Enum.Font.GothamBold
+closeBtn.BorderSizePixel  = 0
+closeBtn.Parent           = titleBar
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
+closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
+
+-- Scroll container
+local scroll = Instance.new("ScrollingFrame")
+scroll.Size                    = UDim2.new(1, -10, 1, -44)
+scroll.Position                = UDim2.new(0, 5, 0, 42)
+scroll.BackgroundTransparency  = 1
+scroll.BorderSizePixel         = 0
+scroll.ScrollBarThickness      = 4
+scroll.ScrollBarImageColor3    = Color3.fromRGB(255, 80, 80)
+scroll.Parent                  = frame
+
+local layout = Instance.new("UIListLayout")
+layout.Padding     = UDim.new(0, 5)
+layout.SortOrder   = Enum.SortOrder.LayoutOrder
+layout.Parent      = scroll
+
+local pad = Instance.new("UIPadding")
+pad.PaddingTop   = UDim.new(0, 4)
+pad.PaddingLeft  = UDim.new(0, 4)
+pad.PaddingRight = UDim.new(0, 4)
+pad.Parent       = scroll
+
+layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    scroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 8)
+end)
+
+-- ============================================
+--   FACTORY: ปุ่ม Toggle / หัวข้อ / Slider
+-- ============================================
+
+local function makeSec(txt, order)
+    local l = Instance.new("TextLabel")
+    l.Size               = UDim2.new(1, -8, 0, 20)
+    l.BackgroundTransparency = 1
+    l.Text               = "── " .. txt .. " ──"
+    l.TextColor3         = Color3.fromRGB(140, 140, 160)
+    l.TextScaled         = true
+    l.Font               = Enum.Font.GothamMedium
+    l.LayoutOrder        = order
+    l.Parent             = scroll
+end
+
+local function makeBtn(icon, lbl, order)
+    local b = Instance.new("TextButton")
+    b.Size             = UDim2.new(1, -8, 0, 34)
+    b.BackgroundColor3 = Color3.fromRGB(38, 38, 50)
+    b.Text             = icon .. "  " .. lbl .. "  [OFF]"
+    b.TextColor3       = Color3.fromRGB(200, 200, 210)
+    b.TextScaled       = true
+    b.Font             = Enum.Font.Gotham
+    b.BorderSizePixel  = 0
+    b.LayoutOrder      = order
+    b.Parent           = scroll
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
+    return b
+end
+
+local function makeSlider(label, min, max, default, order, onChange)
+    local c = Instance.new("Frame")
+    c.Size             = UDim2.new(1, -8, 0, 50)
+    c.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    c.BorderSizePixel  = 0
+    c.LayoutOrder      = order
+    c.Parent           = scroll
+    Instance.new("UICorner", c).CornerRadius = UDim.new(0, 8)
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size                  = UDim2.new(1, -10, 0, 18)
+    lbl.Position              = UDim2.new(0, 8, 0, 4)
+    lbl.BackgroundTransparency = 1
+    lbl.Text                  = label .. ": " .. default
+    lbl.TextColor3            = Color3.fromRGB(190, 190, 200)
+    lbl.TextScaled            = true
+    lbl.Font                  = Enum.Font.Gotham
+    lbl.TextXAlignment        = Enum.TextXAlignment.Left
+    lbl.Parent                = c
+
+    local function mkPM(txt, xPos)
+        local b = Instance.new("TextButton")
+        b.Size             = UDim2.new(0, 30, 0, 22)
+        b.Position         = UDim2.new(0, xPos, 0, 24)
+        b.BackgroundColor3 = Color3.fromRGB(55, 55, 68)
+        b.Text             = txt
+        b.TextColor3       = Color3.fromRGB(255,255,255)
+        b.TextScaled       = true
+        b.Font             = Enum.Font.GothamBold
+        b.BorderSizePixel  = 0
+        b.Parent           = c
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+        return b
+    end
+
+    local minus  = mkPM("-", 8)
+    local valLbl = Instance.new("TextLabel")
+    valLbl.Size               = UDim2.new(0, 55, 0, 22)
+    valLbl.Position           = UDim2.new(0, 44, 0, 24)
+    valLbl.BackgroundTransparency = 1
+    valLbl.Text               = tostring(default)
+    valLbl.TextColor3         = Color3.fromRGB(255, 200, 50)
+    valLbl.TextScaled         = true
+    valLbl.Font               = Enum.Font.GothamBold
+    valLbl.Parent             = c
+
+    local plus = mkPM("+", 105)
+    local cur  = default
+
+    minus.MouseButton1Click:Connect(function()
+        cur = math.max(min, cur - 1)
+        valLbl.Text = tostring(cur)
+        lbl.Text    = label .. ": " .. cur
+        if onChange then onChange(cur) end
+    end)
+    plus.MouseButton1Click:Connect(function()
+        cur = math.min(max, cur + 1)
+        valLbl.Text = tostring(cur)
+        lbl.Text    = label .. ": " .. cur
+        if onChange then onChange(cur) end
+    end)
+end
+
+-- ============================================
+--   STATE
+-- ============================================
+local espOn, speedOn, coinOn = false, false, false
+local grabGunOn   = false
+local sheriffAimOn = false
+local throwAimOn  = false
+local slashOn     = false
+local hitboxOn    = false
+
+local coinConn, slashConn = nil, nil
+local slashRange  = 12
+local hitboxScale = 0.3   -- 30% ขนาดปกติ
+
+-- ============================================
+--   ⚙️  UTILITY
+-- ============================================
+makeSec("⚙️  Utility", 1)
+
+-- ESP
+local espBtn = makeBtn("👁", "ESP", 2)
+espBtn.MouseButton1Click:Connect(function()
+    espOn = not espOn
+    espBtn.Text             = "👁  ESP  [" .. (espOn and "ON" or "OFF") .. "]"
+    espBtn.BackgroundColor3 = espOn and Color3.fromRGB(0,100,220) or Color3.fromRGB(38,38,50)
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= player and p.Character then
+            local ch = p.Character
+            if espOn then
+                local col = Color3.fromRGB(0,220,100)
+                for _, t in pairs(ch:GetChildren()) do
+                    if t:IsA("Tool") then
+                        local n = t.Name:lower()
+                        if n:find("knife") then col = Color3.fromRGB(255,40,40)
+                        elseif n:find("gun") then col = Color3.fromRGB(50,160,255) end
+                    end
+                end
+                local h = Instance.new("Highlight")
+                h.Name             = "ESP_TAG"
+                h.FillColor        = col
+                h.OutlineColor     = Color3.fromRGB(255,255,255)
+                h.FillTransparency = 0.4
+                h.Parent           = ch
+            else
+                local h = ch:FindFirstChild("ESP_TAG")
+                if h then h:Destroy() end
+            end
+        end
+    end
+end)
+
+-- Speed
+local speedBtn = makeBtn("⚡", "Speed x3", 3)
+speedBtn.MouseButton1Click:Connect(function()
+    speedOn = not speedOn
+    speedBtn.Text             = "⚡  Speed x3  [" .. (speedOn and "ON" or "OFF") .. "]"
+    speedBtn.BackgroundColor3 = speedOn and Color3.fromRGB(0,160,70) or Color3.fromRGB(38,38,50)
+    local hum = player.Character and player.Character:FindFirstChild("Humanoid")
+    if hum then hum.WalkSpeed = speedOn and 48 or 16 end
+end)
+
+-- Coin Farm
+local coinBtn = makeBtn("🪙", "Coin Farm", 4)
+coinBtn.MouseButton1Click:Connect(function()
+    coinOn = not coinOn
+    coinBtn.Text             = "🪙  Coin Farm  [" .. (coinOn and "ON" or "OFF") .. "]"
+    coinBtn.BackgroundColor3 = coinOn and Color3.fromRGB(180,120,0) or Color3.fromRGB(38,38,50)
+    if coinOn then
+        coinConn = RunService.Heartbeat:Connect(function()
+            local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+            if not root then return end
+            for _, o in pairs(workspace:GetDescendants()) do
+                if o:IsA("BasePart") and (o.Name == "Coin" or o.Name == "GoldCoin") then
+                    root.CFrame = o.CFrame + Vector3.new(0, 3, 0)
+                    task.wait(0.05)
+                end
+            end
+        end)
+    else
+        if coinConn then coinConn:Disconnect(); coinConn = nil end
+    end
+end)
+
+-- ============================================
+--   🔵  INNOCENT / SHERIFF
+-- ============================================
+makeSec("🔵  Innocent / Sheriff", 10)
+
+-- ── Auto-Grab Gun ──────────────────────────
+local grabBtn = makeBtn("🔫", "Auto-Grab Gun", 11)
+grabBtn.MouseButton1Click:Connect(function()
+    grabGunOn = not grabGunOn
+    grabBtn.Text             = "🔫  Auto-Grab Gun  [" .. (grabGunOn and "ON" or "OFF") .. "]"
+    grabBtn.BackgroundColor3 = grabGunOn and Color3.fromRGB(0,130,200) or Color3.fromRGB(38,38,50)
+end)
+
+-- ตรวจจับปืนตก → วาป
+workspace.DescendantAdded:Connect(function(obj)
+    if not grabGunOn then return end
+    task.wait(0.08)
+
+    if obj:IsA("Tool") then
+        local n = obj.Name:lower()
+        if n:find("gun") or n:find("sheriff") or n:find("revolver") then
+            -- ปืนวางในห้องโลก (ไม่ได้อยู่ใน character)
+            if obj.Parent == workspace then
+                local root   = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                local handle = obj:FindFirstChild("Handle")
+                if root and handle then
+                    root.CFrame = handle.CFrame + Vector3.new(0, 5, 0)
+                end
+            end
+        end
+    end
+end)
+
+-- ── Sheriff Aimbot ─────────────────────────
+local sheriffBtn = makeBtn("🎯", "Sheriff Aimbot", 12)
+sheriffBtn.MouseButton1Click:Connect(function()
+    sheriffAimOn = not sheriffAimOn
+    sheriffBtn.Text             = "🎯  Sheriff Aimbot  [" .. (sheriffAimOn and "ON" or "OFF") .. "]"
+    sheriffBtn.BackgroundColor3 = sheriffAimOn and Color3.fromRGB(0,140,220) or Color3.fromRGB(38,38,50)
+end)
+
+UIS.InputBegan:Connect(function(inp, proc)
+    if proc or not sheriffAimOn then return end
+    if inp.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+
+    local tool = getMyTool()
+    if not tool then return end
+    local tn = tool.Name:lower()
+    if not (tn:find("gun") or tn:find("sheriff") or tn:find("revolver")) then return end
+
+    -- หาฆาตกรแล้ว Snap กล้องตรงหน้า
+    local murderer = findMurderer()
+    if murderer and murderer.Character then
+        local mRoot = murderer.Character:FindFirstChild("HumanoidRootPart")
+        if mRoot then
+            -- หมุนกล้องเข้าหาฆาตกรทันที
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, mRoot.Position)
+
+            -- หมุนตัว Character ด้วย
+            local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+            if myRoot then
+                myRoot.CFrame = CFrame.new(
+                    myRoot.Position,
+                    Vector3.new(mRoot.Position.X, myRoot.Position.Y, mRoot.Position.Z)
+                )
+            end
+        end
+    end
+end)
+
+-- ============================================
+--   🔴  MURDERER
+-- ============================================
+makeSec("🔴  Murderer", 20)
+
+-- ── Knife Throw Aimbot ─────────────────────
+local throwBtn = makeBtn("🗡️", "Knife Throw Aimbot", 21)
+throwBtn.MouseButton1Click:Connect(function()
+    throwAimOn = not throwAimOn
+    throwBtn.Text             = "🗡️  Knife Throw Aimbot  [" .. (throwAimOn and "ON" or "OFF") .. "]"
+    throwBtn.BackgroundColor3 = throwAimOn and Color3.fromRGB(200,40,40) or Color3.fromRGB(38,38,50)
+end)
+
+-- ตรวจจับมีดที่ถูกปา → วาปไปหาคนใกล้สุด
+workspace.DescendantAdded:Connect(function(obj)
+    if not throwAimOn then return end
+    task.wait(0.04)
+
+    if not obj:IsA("BasePart") then return end
+    local n = obj.Name:lower()
+    if not (n:find("knife") or n:find("blade") or n:find("throw")) then return end
+
+    -- ตรวจว่าไม่ใช่มีดใน Character ใคร
+    local ancestor = obj:FindFirstAncestorOfClass("Model")
+    if ancestor and Players:GetPlayerFromCharacter(ancestor) then return end
+
+    local nearest = getNearestPlayer(300)
+    if nearest and nearest.Character then
+        local nRoot = nearest.Character:FindFirstChild("HumanoidRootPart")
+        if nRoot then
+            obj.CFrame = nRoot.CFrame
+        end
+    end
+end)
+
+-- ── Knife Slash Hitbox ─────────────────────
+local slashBtn = makeBtn("⚔️", "Knife Slash (Auto-Close)", 22)
+slashBtn.MouseButton1Click:Connect(function()
+    slashOn = not slashOn
+    slashBtn.Text             = "⚔️  Knife Slash  [" .. (slashOn and "ON" or "OFF") .. "]"
+    slashBtn.BackgroundColor3 = slashOn and Color3.fromRGB(200,40,40) or Color3.fromRGB(38,38,50)
+
+    if slashOn then
+        slashConn = RunService.Heartbeat:Connect(function()
+            local char = player.Character
+            if not char then return end
+
+            local tool = getMyTool()
+            if not tool then return end
+            if not (tool.Name:lower():find("knife") or tool.Name:lower():find("blade")) then return end
+
+            -- เช็คว่ากดเมาส์ซ้ายอยู่ (กำลัง Slash)
+            if UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+                local nearest = getNearestPlayer(slashRange)
+                if nearest and nearest.Character then
+                    local nRoot = nearest.Character:FindFirstChild("HumanoidRootPart")
+                    local myRoot = char:FindFirstChild("HumanoidRootPart")
+                    if nRoot and myRoot then
+                        -- เลื่อนตัวเราให้ชิดผู้เล่นนั้น
+                        local dir = (myRoot.Position - nRoot.Position)
+                        local safeDist = 2.5  -- ห่างพอดีให้ตี
+                        myRoot.CFrame = CFrame.new(
+                            nRoot.Position + dir.Unit * safeDist,
+                            nRoot.Position
+                        )
+                    end
+                end
+            end
+        end)
+    else
+        if slashConn then slashConn:Disconnect(); slashConn = nil end
+    end
+end)
+
+-- Slash Range Slider
+makeSlider("🗡️ Slash Range", 5, 60, 12, 23, function(v) slashRange = v end)
+
+-- ============================================
+--   🛡️  DEFENSE
+-- ============================================
+makeSec("🛡️  Defense", 30)
+
+-- ── Hitbox Modifier ────────────────────────
+local hitboxBtn = makeBtn("🛡️", "Hitbox เล็กลง (ยากโดน)", 31)
+hitboxBtn.MouseButton1Click:Connect(function()
+    hitboxOn = not hitboxOn
+    hitboxBtn.Text             = "🛡️  Hitbox  [" .. (hitboxOn and "ON" or "OFF") .. "]"
+    hitboxBtn.BackgroundColor3 = hitboxOn and Color3.fromRGB(100,50,200) or Color3.fromRGB(38,38,50)
+
+    local char = player.Character
+    local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        hrp.Size = hitboxOn
+            and Vector3.new(2 * hitboxScale, 2, hitboxScale)
+            or  Vector3.new(2, 2, 1)
+    end
+end)
+
+-- Hitbox Scale Slider  (ค่า 1–10 → แปลงเป็น 0.1–1.0)
+makeSlider("📐 Hitbox Scale (1=เล็กสุด)", 1, 10, 3, 32, function(v)
+    hitboxScale = v * 0.1
+    if hitboxOn then
+        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then hrp.Size = Vector3.new(2 * hitboxScale, 2, hitboxScale) end
+    end
+end)
