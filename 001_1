@@ -1,0 +1,668 @@
+-- ============================================
+-- DELTA RUNNER ROBLOX SCRIPT V.2 (UNIVERSAL ALL MAPS)
+-- พัฒนาและปรับปรุงใหม่: รองรับทุกแมพ + UI Bouncy + Aimbot + Infinite Jump
+-- ============================================
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+local Camera = workspace.CurrentCamera
+local Mouse = LocalPlayer:GetMouse()
+
+-- ป้องกันข้อผิดพลาดในการเข้าถึง GUI ของระบบ
+local TargetGui = CoreGui:FindFirstChild("RobloxGui") or LocalPlayer:WaitForChild("PlayerGui")
+
+-- ============================================
+-- 1. ระบบหน้าต่างโหลดก่อนเริ่มใช้งาน (LOADING SCREEN)
+-- ============================================
+local LoadingGui = Instance.new("ScreenGui")
+LoadingGui.Name = "DeltaLoadingGui"
+LoadingGui.IgnoreGuiInset = true
+LoadingGui.Parent = TargetGui
+
+local LoadBackground = Instance.new("Frame")
+LoadBackground.Size = UDim2.new(1, 0, 1, 0)
+LoadBackground.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+LoadBackground.BorderSizePixel = 0
+LoadBackground.Parent = LoadingGui
+
+local LoadTitle = Instance.new("TextLabel")
+LoadTitle.Size = UDim2.new(1, 0, 0, 50)
+LoadTitle.Position = UDim2.new(0, 0, 0.4, -40)
+LoadTitle.BackgroundTransparency = 1
+LoadTitle.Text = "🔴 DELTA RUNNER V.2 🔴"
+LoadTitle.TextColor3 = Color3.fromRGB(255, 50, 50)
+LoadTitle.Font = Enum.Font.GothamBold
+LoadTitle.TextSize = 26
+LoadTitle.Parent = LoadBackground
+
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Size = UDim2.new(1, 0, 0, 30)
+StatusLabel.Position = UDim2.new(0, 0, 0.4, 15)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "กำลังตรวจสอบสิทธิ์และระบบความปลอดภัย..."
+StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+StatusLabel.Font = Enum.Font.SourceSans
+StatusLabel.TextSize = 16
+StatusLabel.Parent = LoadBackground
+
+local BarBackground = Instance.new("Frame")
+BarBackground.Size = UDim2.new(0.6, 0, 0, 12)
+BarBackground.Position = UDim2.new(0.2, 0, 0.5, 20)
+BarBackground.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+BarBackground.BorderSizePixel = 0
+BarBackground.Parent = LoadBackground
+
+local BarCorner = Instance.new("UICorner")
+BarCorner.CornerRadius = UDim.new(1, 0)
+BarCorner.Parent = BarBackground
+
+local BarFill = Instance.new("Frame")
+BarFill.Size = UDim2.new(0, 0, 1, 0)
+BarFill.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+BarFill.BorderSizePixel = 0
+BarFill.Parent = BarBackground
+
+local FillCorner = Instance.new("UICorner")
+FillCorner.CornerRadius = UDim.new(1, 0)
+FillCorner.Parent = BarFill
+
+local PercentLabel = Instance.new("TextLabel")
+PercentLabel.Size = UDim2.new(1, 0, 0, 25)
+PercentLabel.Position = UDim2.new(0, 0, 0.5, 38)
+PercentLabel.BackgroundTransparency = 1
+PercentLabel.Text = "0%"
+PercentLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+PercentLabel.Font = Enum.Font.GothamBold
+PercentLabel.TextSize = 14
+PercentLabel.Parent = LoadBackground
+
+-- คำนวณการโหลดแบบสุ่มระยะเวลา 2-4 วินาที
+local loadDuration = math.random(2, 4)
+local tweenInfo = TweenInfo.new(loadDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local tweenBar = TweenService:Create(BarFill, tweenInfo, {Size = UDim2.new(1, 0, 1, 0)})
+tweenBar:Play()
+
+local startTime = tick()
+while tick() - startTime < loadDuration do
+    local progress = math.clamp((tick() - startTime) / loadDuration, 0, 1)
+    PercentLabel.Text = string.format("%d%%", math.floor(progress * 100))
+    task.wait()
+end
+
+PercentLabel.Text = "100%"
+StatusLabel.Text = "โหลดเสร็จสิ้น!"
+task.wait(0.5)
+
+-- Fade Out จางหาย
+local fadeTween = TweenService:Create(LoadBackground, TweenInfo.new(0.5), {BackgroundTransparency = 1})
+fadeTween:Play()
+fadeTween.Completed:Connect(function()
+    LoadingGui:Destroy()
+end)
+
+-- ============================================
+-- 2. ตัวแปรสถานะฟังก์ชันทั้งหมด
+-- ============================================
+local speedEnabled = false
+local speedValue = 50
+local speedConnection = nil
+
+local noclipEnabled = false
+local noclipConnection = nil
+
+local teleportEnabled = false
+local mouseClickConnection = nil
+
+local redEnabled = false
+local originalAppearance = {} -- เก็บค่าสีเดิมที่แท้จริง
+
+local espEnabled = false
+local espObjects = {}
+
+local infJumpEnabled = false
+local infJumpConnection = nil
+
+local aimbotEnabled = false
+local aimbotConnection = nil
+
+-- ============================================
+-- 3. โครงสร้าง UI เมนูหลักแบบ GUI Bouncy
+-- ============================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "DeltaRunnerV2"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = TargetGui
+
+-- กรอบเมนูหลัก
+local MainFrame = Instance.new("Frame")
+MainFrame.Parent = ScreenGui
+MainFrame.Size = UDim2.new(0, 0, 0, 0) -- เริ่มต้นขนาด 0 เพื่อทำ Animation เด้งเปิด
+MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.ClipsDescendants = true
+MainFrame.Visible = false
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 10)
+MainCorner.Parent = MainFrame
+
+local FrameBorder = Instance.new("UIStroke")
+FrameBorder.Parent = MainFrame
+FrameBorder.Color = Color3.fromRGB(255, 0, 0)
+FrameBorder.Thickness = 2
+
+-- แถบหัวข้อ
+local TitleBar = Instance.new("Frame")
+TitleBar.Parent = MainFrame
+TitleBar.Size = UDim2.new(1, 0, 0, 40)
+TitleBar.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+TitleBar.BorderSizePixel = 0
+
+local TitleBarCorner = Instance.new("UICorner")
+TitleBarCorner.CornerRadius = UDim.new(0, 10)
+TitleBarCorner.Parent = TitleBar
+
+local Title = Instance.new("TextLabel")
+Title.Parent = TitleBar
+Title.Size = UDim2.new(1, -40, 1, 0)
+Title.Position = UDim2.new(0, 15, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "🔴 DELTA RUNNER V.2 (UNIVERSAL)"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 14
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- ปุ่มปิดเมนู
+local CloseButton = Instance.new("TextButton")
+CloseButton.Parent = TitleBar
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -35, 0, 5)
+CloseButton.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+CloseButton.Text = "✕"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.TextSize = 14
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 6)
+CloseCorner.Parent = CloseButton
+
+-- คอนเทนเนอร์เนื้อหาแบบ Scrolling
+local ContentFrame = Instance.new("ScrollingFrame")
+ContentFrame.Parent = MainFrame
+ContentFrame.Size = UDim2.new(1, 0, 1, -45)
+ContentFrame.Position = UDim2.new(0, 0, 0, 45)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.BorderSizePixel = 0
+ContentFrame.ScrollBarThickness = 4
+ContentFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 0, 0)
+ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 520)
+
+-- ============================================
+-- 4. ระบบการทำ UI Bouncy (เปิด/ปิดเด้งๆ) & ปุ่มย่อเมนู
+-- ============================================
+local menuVisible = false
+
+local function toggleMenu(show)
+    menuVisible = show
+    if menuVisible then
+        MainFrame.Visible = true
+        MainFrame:TweenSizeAndPosition(
+            UDim2.new(0, 320, 0, 440),
+            UDim2.new(0.5, -160, 0.5, -220),
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Back,
+            0.4,
+            true
+        )
+    else
+        MainFrame:TweenSizeAndPosition(
+            UDim2.new(0, 0, 0, 0),
+            UDim2.new(0.5, 0, 0.5, 0),
+            Enum.EasingDirection.In,
+            Enum.EasingStyle.Back,
+            0.3,
+            true,
+            function()
+                if not menuVisible then MainFrame.Visible = false end
+            end
+        )
+    end
+end
+
+CloseButton.MouseButton1Click:Connect(function()
+    toggleMenu(false)
+end)
+
+-- ปุ่มลอยวงกลมสำหรับย่อ/ขยายหน้าต่าง
+local FloatButton = Instance.new("TextButton")
+FloatButton.Name = "FloatToggleButton"
+FloatButton.Size = UDim2.new(0, 45, 0, 45)
+FloatButton.Position = UDim2.new(0, 15, 0.5, -22)
+FloatButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+FloatButton.Text = "🔴"
+FloatButton.TextSize = 18
+FloatButton.Active = true
+FloatButton.Draggable = true
+FloatButton.Parent = ScreenGui
+
+local FloatCorner = Instance.new("UICorner")
+FloatCorner.CornerRadius = UDim.new(1, 0)
+FloatCorner.Parent = FloatButton
+
+local FloatBorder = Instance.new("UIStroke")
+FloatBorder.Parent = FloatButton
+FloatBorder.Color = Color3.fromRGB(255, 0, 0)
+FloatBorder.Thickness = 2
+
+FloatButton.MouseButton1Click:Connect(function()
+    toggleMenu(not menuVisible)
+end)
+
+-- แสดงเมนูเริ่มต้นพร้อม Animation เด้งเปิด
+task.delay(loadDuration + 0.6, function()
+    toggleMenu(true)
+end)
+
+-- ============================================
+-- 5. ฟังก์ชันสร้าง Component ตัวช่วย UI
+-- ============================================
+local function createSectionLabel(text, yPosition)
+    local label = Instance.new("TextLabel")
+    label.Parent = ContentFrame
+    label.Size = UDim2.new(1, -20, 0, 22)
+    label.Position = UDim2.new(0, 10, 0, yPosition)
+    label.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    label.BorderSizePixel = 0
+    label.Text = " " .. text
+    label.TextColor3 = Color3.fromRGB(255, 100, 100)
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 12
+    label.TextXAlignment = Enum.TextXAlignment.Left
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 4)
+    corner.Parent = label
+    return label
+end
+
+local function createToggleButton(text, yPosition)
+    local button = Instance.new("TextButton")
+    button.Parent = ContentFrame
+    button.Size = UDim2.new(1, -20, 0, 32)
+    button.Position = UDim2.new(0, 10, 0, yPosition)
+    button.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    button.BorderSizePixel = 0
+    button.Text = text .. ": ปิด"
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.Font = Enum.Font.SourceSansBold
+    button.TextSize = 14
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = button
+
+    return button
+end
+
+-- ============================================
+-- ฟังก์ชันที่ 1: วิ่งไวแบบบังคับต่อเนื่อง (Universal Speed)
+-- ============================================
+createSectionLabel("⚡ ฟังก์ชันวิ่งไว (บังคับทุกแมพ)", 10)
+
+local SpeedButton = createToggleButton("วิ่งไว (ความเร็ว 50)", 37)
+
+local function enableSpeed()
+    speedEnabled = true
+    if speedConnection then speedConnection:Disconnect() end
+    speedConnection = RunService.RenderStepped:Connect(function()
+        if speedEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = speedValue
+        end
+    end)
+end
+
+local function disableSpeed()
+    speedEnabled = false
+    if speedConnection then
+        speedConnection:Disconnect()
+        speedConnection = nil
+    end
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.WalkSpeed = 16
+    end
+end
+
+SpeedButton.MouseButton1Click:Connect(function()
+    if speedEnabled then
+        disableSpeed()
+        SpeedButton.Text = "วิ่งไว: ปิด (ความเร็ว " .. speedValue .. ")"
+        SpeedButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    else
+        enableSpeed()
+        SpeedButton.Text = "วิ่งไว: เปิด (ความเร็ว " .. speedValue .. ")"
+        SpeedButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+    end
+end)
+
+local SpeedInput = Instance.new("TextBox")
+SpeedInput.Parent = ContentFrame
+SpeedInput.Size = UDim2.new(0.5, -15, 0, 28)
+SpeedInput.Position = UDim2.new(0, 10, 0, 74)
+SpeedInput.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+SpeedInput.BorderSizePixel = 0
+SpeedInput.Text = "50"
+SpeedInput.PlaceholderText = "ความเร็ว (1-200)"
+SpeedInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedInput.Font = Enum.Font.SourceSans
+SpeedInput.TextSize = 13
+
+local InputCorner = Instance.new("UICorner")
+InputCorner.CornerRadius = UDim.new(0, 4)
+InputCorner.Parent = SpeedInput
+
+local SpeedApplyButton = Instance.new("TextButton")
+SpeedApplyButton.Parent = ContentFrame
+SpeedApplyButton.Size = UDim2.new(0.5, -15, 0, 28)
+SpeedApplyButton.Position = UDim2.new(0.5, 5, 0, 74)
+SpeedApplyButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+SpeedApplyButton.BorderSizePixel = 0
+SpeedApplyButton.Text = "ตั้งค่าความเร็ว"
+SpeedApplyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedApplyButton.Font = Enum.Font.SourceSansBold
+SpeedApplyButton.TextSize = 13
+
+local ApplyCorner = Instance.new("UICorner")
+ApplyCorner.CornerRadius = UDim.new(0, 4)
+ApplyCorner.Parent = SpeedApplyButton
+
+SpeedApplyButton.MouseButton1Click:Connect(function()
+    local value = tonumber(SpeedInput.Text) or 50
+    speedValue = math.clamp(value, 1, 200)
+    SpeedInput.Text = tostring(speedValue)
+    if speedEnabled then
+        SpeedButton.Text = "วิ่งไว: เปิด (ความเร็ว " .. speedValue .. ")"
+    end
+end)
+
+-- ============================================
+-- ฟังก์ชันที่ 2: ทะลุกำแพง (Universal Noclip)
+-- ============================================
+createSectionLabel("👻 ฟังก์ชันทะลุกำแพง", 112)
+
+local NoclipButton = createToggleButton("ทะลุกำแพง", 139)
+
+local function enableNoclip()
+    noclipEnabled = true
+    noclipConnection = RunService.Stepped:Connect(function()
+        if noclipEnabled and LocalPlayer.Character then
+            for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
+end
+
+local function disableNoclip()
+    noclipEnabled = false
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+end
+
+NoclipButton.MouseButton1Click:Connect(function()
+    if noclipEnabled then
+        disableNoclip()
+        NoclipButton.Text = "ทะลุกำแพง: ปิด"
+        NoclipButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    else
+        enableNoclip()
+        NoclipButton.Text = "ทะลุกำแพง: เปิด"
+        NoclipButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+    end
+end)
+
+-- ============================================
+-- ฟังก์ชันที่ 3: วาปคลิกปรับปรุงใหม่ (PivotTo Support)
+-- ============================================
+createSectionLabel("📍 ฟังก์ชันวาปคลิก (รองรับ R6/R15)", 181)
+
+local TeleportButton = createToggleButton("วาปคลิก", 208)
+
+TeleportButton.MouseButton1Click:Connect(function()
+    teleportEnabled = not teleportEnabled
+    if teleportEnabled then
+        mouseClickConnection = Mouse.Button1Down:Connect(function()
+            if teleportEnabled and LocalPlayer.Character then
+                local targetPosition = Mouse.Hit.Position + Vector3.new(0, 3, 0)
+                LocalPlayer.Character:PivotTo(CFrame.new(targetPosition))
+            end
+        end)
+        TeleportButton.Text = "วาปคลิก: เปิด (คลิกซ้ายเพื่อวาป)"
+        TeleportButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+    else
+        if mouseClickConnection then
+            mouseClickConnection:Disconnect()
+            mouseClickConnection = nil
+        end
+        TeleportButton.Text = "วาปคลิก: ปิด"
+        TeleportButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    end
+end)
+
+-- ============================================
+-- ฟังก์ชันที่ 4: ตัวละครสีแดง (ระบบบันทึกสีเดิม Smart Restore)
+-- ============================================
+createSectionLabel("🔴 ฟังก์ชันตัวละครสีแดง", 250)
+
+local RedButton = createToggleButton("ตัวละครสีแดง", 277)
+
+local function setCharacterRed()
+    if LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                if not originalAppearance[part] then
+                    originalAppearance[part] = {Color = part.Color, Material = part.Material}
+                end
+                part.Color = Color3.fromRGB(255, 0, 0)
+                part.Material = Enum.Material.Neon
+            end
+        end
+    end
+end
+
+local function resetCharacterColor()
+    for part, data in pairs(originalAppearance) do
+        if part and part.Parent then
+            part.Color = data.Color
+            part.Material = data.Material
+        end
+    end
+    originalAppearance = {}
+end
+
+RedButton.MouseButton1Click:Connect(function()
+    redEnabled = not redEnabled
+    if redEnabled then
+        setCharacterRed()
+        RedButton.Text = "ตัวละครสีแดง: เปิด"
+        RedButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+    else
+        resetCharacterColor()
+        RedButton.Text = "ตัวละครสีแดง: ปิด"
+        RedButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    end
+end)
+
+-- ============================================
+-- ฟังก์ชันที่ 5: ESP มองทะลุกำแพง (Auto Cleanup)
+-- ============================================
+createSectionLabel("👁️ ฟังก์ชัน ESP ผู้เล่น", 319)
+
+local ESPButton = createToggleButton("ESP ผู้เล่น", 346)
+
+local function addHighlight(character)
+    if character and character:FindFirstChild("HumanoidRootPart") and character ~= LocalPlayer.Character then
+        if not character:FindFirstChild("DeltaESP") then
+            local highlight = Instance.new("Highlight")
+            highlight.Name = "DeltaESP"
+            highlight.Parent = character
+            highlight.FillColor = Color3.fromRGB(255, 0, 0)
+            highlight.FillTransparency = 0.5
+            highlight.OutlineColor = Color3.fromRGB(255, 255, 0)
+            highlight.OutlineTransparency = 0
+            espObjects[character] = highlight
+        end
+    end
+end
+
+local function removeESP()
+    espEnabled = false
+    for character, highlight in pairs(espObjects) do
+        if highlight and highlight.Parent then
+            highlight:Destroy()
+        end
+    end
+    espObjects = {}
+end
+
+ESPButton.MouseButton1Click:Connect(function()
+    espEnabled = not espEnabled
+    if espEnabled then
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                addHighlight(player.Character)
+            end
+        end
+        ESPButton.Text = "ESP ผู้เล่น: เปิด"
+        ESPButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+    else
+        removeESP()
+        ESPButton.Text = "ESP ผู้เล่น: ปิด"
+        ESPButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    end
+end)
+
+-- ทำความสะอาด ESP เมื่อผู้เล่นออกจากแมพ
+Players.PlayerRemoving:Connect(function(player)
+    if player.Character and espObjects[player.Character] then
+        espObjects[player.Character]:Destroy()
+        espObjects[player.Character] = nil
+    end
+end)
+
+-- ============================================
+-- ฟังก์ชันที่ 6: กระโดดไม่จำกัด (Infinite Jump)
+-- ============================================
+createSectionLabel("🦘 ฟังก์ชันกระโดดไม่จำกัด", 388)
+
+local InfJumpButton = createToggleButton("กระโดดไม่จำกัด", 415)
+
+InfJumpButton.MouseButton1Click:Connect(function()
+    infJumpEnabled = not infJumpEnabled
+    if infJumpEnabled then
+        infJumpConnection = UserInputService.JumpRequest:Connect(function()
+            if infJumpEnabled and LocalPlayer.Character then
+                local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                end
+            end
+        end)
+        InfJumpButton.Text = "กระโดดไม่จำกัด: เปิด"
+        InfJumpButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+    else
+        if infJumpConnection then
+            infJumpConnection:Disconnect()
+            infJumpConnection = nil
+        end
+        InfJumpButton.Text = "กระโดดไม่จำกัด: ปิด"
+        InfJumpButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    end
+end)
+
+-- ============================================
+-- ฟังก์ชันที่ 7: ระบบล็อกเป้า (Camera Lock-On Aimbot)
+-- ============================================
+createSectionLabel("🎯 ฟังก์ชันล็อกเป้า (Aimbot)", 457)
+
+local AimbotButton = createToggleButton("ล็อกเป้าผู้เล่นใกล้สุด", 484)
+
+local function getClosestPlayerHead()
+    local closestHead = nil
+    local minDistance = math.huge
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                local head = player.Character.Head
+                local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+                if onScreen then
+                    local mousePos = Vector2.new(Mouse.X, Mouse.Y)
+                    local distance = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                    if distance < minDistance then
+                        minDistance = distance
+                        closestHead = head
+                    end
+                end
+            end
+        end
+    end
+    return closestHead
+end
+
+AimbotButton.MouseButton1Click:Connect(function()
+    aimbotEnabled = not aimbotEnabled
+    if aimbotEnabled then
+        aimbotConnection = RunService.RenderStepped:Connect(function()
+            if aimbotEnabled then
+                local targetHead = getClosestPlayerHead()
+                if targetHead then
+                    Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetHead.Position)
+                end
+            end
+        end)
+        AimbotButton.Text = "ล็อกเป้า: เปิด"
+        AimbotButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+    else
+        if aimbotConnection then
+            aimbotConnection:Disconnect()
+            aimbotConnection = nil
+        end
+        AimbotButton.Text = "ล็อกเป้า: ปิด"
+        AimbotButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    end
+end)
+
+-- ============================================
+-- ระบบเกิดใหม่รองรับฟังก์ชันอัตโนมัติ
+-- ============================================
+LocalPlayer.CharacterAdded:Connect(function(character)
+    task.wait(0.5)
+    if speedEnabled then enableSpeed() end
+    if noclipEnabled then enableNoclip() end
+    if redEnabled then setCharacterRed() end
+    if espEnabled then
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                addHighlight(player.Character)
+            end
+        end
+    end
+end)
+
+print("============================================")
+print("Delta Runner Script V.2 โหลดสมบูรณ์แบบ 100%!")
+print("============================================")
